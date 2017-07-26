@@ -14,14 +14,14 @@ Here is an example how to use MARS in C#.
 
 // Create training set</br>
 Double[][] xTraining = new Double[][] {</br>
-   new Double[] {1.5, 3.0, 4.5},</br>
-   new Double[] {0.5, 1.2, 2.3},</br>
-   new Double[] {2.5, 1.0, 3.5},</br>
-   new Double[] {4.3, 5.1, 6.3},</br>
-   new Double[] {-0.8, 7.4, 1.2}</br>
+&nbsp;&nbsp;&nbsp;new Double[] {1.5, 3.0, 4.5},</br>
+&nbsp;&nbsp;&nbsp;new Double[] {0.5, 1.2, 2.3},</br>
+&nbsp;&nbsp;&nbsp;new Double[] {2.5, 1.0, 3.5},</br>
+&nbsp;&nbsp;&nbsp;new Double[] {4.3, 5.1, 6.3},</br>
+&nbsp;&nbsp;&nbsp;new Double[] {-0.8, 7.4, 1.2}</br>
 };</br>
 Double[] yTraining = new Double[] {</br>
-   0.5, 1.2, 2.3, 3.5, -0.3</br>
+&nbsp;&nbsp;&nbsp;0.5, 1.2, 2.3, 3.5, -0.3</br>
 };</br>
 </br>
 // Instantiate MARS and Learn from the training model</br>
@@ -34,7 +34,7 @@ System.Console.WriteLine("MAPE Training = {0}", mars.MAPETraining);</br>
 </br>
 // Create testing set</br>
 Double[] xTesting = new Double[] {</br>
-   3.2, 4.3, 5.1</br>
+&nbsp;&nbsp;&nbsp;3.2, 4.3, 5.1</br>
 };</br>
 // Predict new Y value using xTesting </br>
 Double yHat = mars.Predict(xTesting);</br>
