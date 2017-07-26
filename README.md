@@ -24,25 +24,25 @@ Double[] yTraining = new Double[] {</br>
    0.5, 1.2, 2.3, 3.5, -0.3</br>
 };</br>
 </br>
-// Instantiate MARS and Learn the model
-MARS mars = new MARS();
-mars.Learn(xTraining , yTraining );
-
-// Show how good was the training fitting
-System.Console.WriteLine("RSquare Training = {0}", mars.RSquareTraining);
-System.Console.WriteLine("MAPE Training = {0}", mars.MAPETraining);
-
-// Create testing set
-Double[] xTesting = new Double[] {
-   3.2, 4.3, 5.1
-};
-// Predict new Y value using xTesting
-Double yHat = mars.Predict(xTesting);
-
-// Show how good was the testing fitting
-System.Console.WriteLine("Predicted value = {0}", yHat);
-System.Console.WriteLine("RSquare Testing = {0}", mars.RSquareTesting);
-System.Console.WriteLine("MAPE Testing    = {0}", mars.MAPETesting);
-
+// Instantiate MARS and Learn from the training model</br>
+MARS mars = new MARS();</br>
+mars.Learn(xTraining , yTraining );</br>
+</br>
+// Show how good was the training fitting</br>
+System.Console.WriteLine("RSquare Training = {0}", mars.RSquareTraining);</br>
+System.Console.WriteLine("MAPE Training = {0}", mars.MAPETraining);</br>
+</br>
+// Create testing set</br>
+Double[] xTesting = new Double[] {</br>
+   3.2, 4.3, 5.1</br>
+};</br>
+// Predict new Y value using xTesting </br>
+Double yHat = mars.Predict(xTesting);</br>
+</br>
+// Show how good was the testing fitting</br>
+System.Console.WriteLine("Predicted value = {0}", yHat);</br>
+System.Console.WriteLine("RSquare Testing = {0}", mars.RSquareTesting);</br>
+System.Console.WriteLine("MAPE Testing    = {0}", mars.MAPETesting);</br>
+</br>
 
 
