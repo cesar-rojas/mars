@@ -10,13 +10,4 @@
 #define ECOEARTH_API __declspec(dllimport)
 #endif
 
-// This class is exported from the EcoEarth.dll
-class ECOEARTH_API CEcoEarth {
-public:
-	CEcoEarth(void);
-	// TODO: add your methods here.
-};
 
-extern ECOEARTH_API int nEcoEarth;
-
-ECOEARTH_API int fnEcoEarth(void);

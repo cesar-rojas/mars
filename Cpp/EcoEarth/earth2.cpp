@@ -7,7 +7,12 @@
 // See the R earth documentation for descriptions of the principal data structures.
 // See also www.milbo.users.sonic.net.  This code uses a subset of C99.
 //
-// Stephen Milborrow Feb 2007 Petaluma
+// Stephen Milborrow Feb 2007 - Petaluma
+// Cesar A. Rojas    Jun 2016 - Moved to Visual Studio C++. 
+//								Updated to allow training and prediction separately.
+//								Add RSquare and MAPE calculation for training and testing separately.
+//								Creation of function to be exported to C#.
+//								Add additional MARS functionality missing from Friedman's paper.
 //
 // References:
 //
