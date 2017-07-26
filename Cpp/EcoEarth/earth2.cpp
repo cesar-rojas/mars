@@ -8,11 +8,11 @@
 // See also www.milbo.users.sonic.net.  This code uses a subset of C99.
 //
 // Stephen Milborrow Feb 2007 - Petaluma
-// Cesar A. Rojas    Jun 2016 - Moved to Visual Studio C++. 
+// Cesar A. Rojas    Jan 2016 - Rewritten in Visual Studio C++. 
 //								Updated to allow training and prediction separately.
-//								Add RSquare and MAPE calculation for training and testing separately.
+//								Add RSquare, Generalized RSquare and MAPE calculation for training and testing separately.
 //								Creation of function to be exported to C#.
-//								Add additional MARS functionality missing from Friedman's paper.
+//								Added additional MARS functionality missing from Friedman's paper.
 //
 // References:
 //
@@ -72,15 +72,8 @@
     #endif
 #endif
 
-#if USING_R             // R with gcc
-    #include "R.h"
-    #include "Rinternals.h" // needed for Allowed function handling
-    #include "allowed.h"
-    #define printf Rprintf
-    #define FINITE(x) R_FINITE(x)
-#else
-    #define warning printf
-    void error(const char* args, ...);
+#define warning printf
+void error(const char* args, ...);
 #if _MSC_VER // microsoft
     #define ISNAN(x)  _isnan(x)
     #define FINITE(x) _finite(x)
@@ -88,7 +81,7 @@
     #define ISNAN(x)  isnan(x)
     #define FINITE(x) finite(x)
 #endif
-#endif
+
 
 #include "earth.h"
 #ifdef MATLAB
@@ -302,36 +295,10 @@ static double* bxOrthCenteredT; // local to ForwardPass
 static double* bxOrthMean;      // local to ForwardPass
 static int*    nDegree;         // local to Earth or ForwardPassR
 static int*    nUses;           // local to Earth or ForwardPassR
-#if USING_R
-static int*    iDirs;           // local to ForwardPassR
-static bool*   BoolFullSet;     // local to ForwardPassR
-#endif
 #if FAST_MARS
 static void FreeQ(void);
 #endif
 
-#if USING_R
-void FreeR(void)                // for use by R
-{
-    free1(WorkingSet);
-    free1(CovSx);
-    free1(CovCol);
-    free1(ycboSum);
-    free1(xOrder);
-    free1(bxOrthMean);
-    free1(bxOrthCenteredT);
-    free1(bxOrth);
-    free1(yMean);
-    free1(BoolFullSet);
-    free1(iDirs);
-    free1(nUses);
-    free1(nDegree);
-    FreeBetaCache();
-#if FAST_MARS
-    FreeQ();
-#endif
-}
-#endif
 
 //-----------------------------------------------------------------------------
 static char* sFormatMemSize(const size_t MemSize, const bool Align)
@@ -361,20 +328,6 @@ static void tprintf(const int trace, const char *args, ...) // printf with trace
         printf("%s", s);
     }
 }
-
-//-----------------------------------------------------------------------------
-// Gets called periodically to service the R framework.
-// Will not return if the user interrupts.
-
-#if USING_R
-
-static INLINE void ServiceR(void)
-{
-    R_FlushConsole();
-    R_CheckUserInterrupt();     // may never return
-}
-
-#endif
 
 //-----------------------------------------------------------------------------
 #if FAST_MARS
@@ -601,10 +554,6 @@ static int* GetArrayOrder(
 
     for(int iCol = 0; iCol < nCols; iCol++) {
         GetOrder(xOrder + iCol*nRows, x + iCol*nRows, nRows);
-#if USING_R
-        if(nRows > (int)1e4)
-            ServiceR();
-#endif
     }
     return xOrder;
 }
@@ -908,31 +857,6 @@ static void Regress(
     free1(qraux);
     free1(work);
 }
-
-//-----------------------------------------------------------------------------
-// This routine is for testing Regress from R, to compare results to R's lm().
-
-#if USING_R
-void RegressR(                  // for testing earth routine Regress from R
-    double       Betas[],       // out: (nUsedCols+1) * nResp, +1 is for intercept
-    double       Residuals[],   // out: nCases * nResp
-    double       Rss[],         // out: RSS, summed over all nResp
-    double       Diags[],       // out: diags of inv(transpose(x) * x)
-    int*         pnRank,        // out: nbr of indep cols in x
-    int          iPivots[],     // out: nCols
-    const double x[],           // in: nCases x nCols
-    const double y[],           // in: nCases x nResp
-    const int*   pnCases,       // in: number of rows in x and in y
-    const int*   pnResp,        // in: number of cols in y
-    int*         pnCols,        // in: number of columns in x, some may not be used
-    const bool   UsedCols[])    // in: specifies used columns in x
-{
-    const size_t nCases1 = *pnCases; // type convert
-
-    Regress(Betas, Residuals, Rss, Diags, pnRank, iPivots,
-        x, y, nCases1, *pnResp, *pnCols, UsedCols);
-}
-#endif
 
 //-----------------------------------------------------------------------------
 // Regress y on bx to get Residuals and Betas.  If bx isn't of full rank,
@@ -1729,12 +1653,6 @@ static INLINE void FindPredGivenParent(
             tprintf(7,
 "|Parent %-2d Pred %-2d %44.44s skip (pred is in parent)\n",
                     iParent+IOFFSET, iPred+IOFFSET, " ");
-#if USING_R
-        } else if(!IsAllowed(iPred, iParent, Dirs, nPreds, nMaxTerms)) {
-            tprintf(7,
-"|Parent %-2d Pred %-2d %44.44s skip (not allowed by \"allowed\" func)\n",
-                    iParent+IOFFSET, iPred+IOFFSET, " ");
-#endif
         } else {
             // we apply the penalty if the variable is entering for the first time
             const double NewVarAdjust = 1 / (1 + (nUses[iPred] == 0? NewVarPenalty: 0));
@@ -2056,17 +1974,7 @@ static INLINE void FindWeightedPredGivenParent(
         if(Dirs_(iParent,iPred) != 0) {     // predictor is in parent term?
             tprintf(7, "|Parent %-2d Pred %-2d %44.44s skip (pred is in parent)\n",
                 iParent+IOFFSET, iPred+IOFFSET, " ");
-#if USING_R
-        } else if(!IsAllowed(iPred, iParent, Dirs, nPreds, nMaxTerms)) {
-            tprintf(7,
-"|Parent %-2d Pred %-2d %44.44s skip (not allowed by \"allowed\" func)\n",
-                iParent+IOFFSET, iPred+IOFFSET, " ");
-#endif
         } else {
-#if USING_R
-            // TODO we don't release UsedCols here if user interrupts
-            ServiceR();
-#endif
             // const double NewVarAdjust = 1 + (nUses[iPred] == 0? NewVarPenalty: 0);
             bool IsNewForm = GetNewFormFlag(iPred, iParent, Dirs,
                                 FullSet, nTerms, nPreds, nMaxTerms);
@@ -2265,22 +2173,12 @@ static void FindTerm(
                 ycboSum_(iTerm,iResp) +=
                     (y_(i,iResp) - yMean[iResp]) * bxOrth_(i,iTerm);
 
-#if USING_R
-    const int nServiceR = (int)1e6 / nCases;
-#endif
     int iParent;
 #if FAST_MARS
     GetNextParent(true, nFastK); // init queue iterator
     while((iParent = GetNextParent(false, nFastK)) > -1) {
 #else
     for(iParent = 0; iParent < nTerms; iParent++) {
-#endif
-#if USING_R
-        static int iServiceR = 0;
-        if(++iServiceR > nServiceR) {
-            ServiceR();
-            iServiceR = 0;
-        }
 #endif
         // Assume a bad RssDelta for iParent.  This pushes parent terms that
         // can't be used to the bottom of the FastMARS queue.  (A parent can't
@@ -2429,10 +2327,10 @@ static void PrintForwardStep(
             printf("%3d ", nDegree);
         }
     }
-#if !USING_R // no flush needed when using R_printf
+
     if(TraceGlobal != 0)
         fflush(stdout);
-#endif
+
 }
 
 //-----------------------------------------------------------------------------
@@ -2492,11 +2390,7 @@ static int ForwardEpilog( // returns reason we stopped adding terms
                 sTerms);
     } else {
         iTermCond = 7;
-#if USING_R
-        tprintf(1, "\nReached nk %d\n", nMaxTerms);
-#else
         tprintf(1, "\nReached maximum number of terms %d\n", nMaxTerms);
-#endif
     }
     if(TraceGlobal >= 1)
         printf("After forward pass GRSq %.3f RSq %.3f\n", GRSq, RSq);
@@ -2517,15 +2411,6 @@ static void CheckVec(
 
     for(iCol = 0; iCol < nCols; iCol++)
         for(i = 0; i < (const int)nCases; i++) {
-#if USING_R
-             if(ISNA(x[i + iCol * nCases])) {
-                 if(nCols > 1)
-                     error("%s[%d,%d] is NA",
-                         sVecName, i+IOFFSET, iCol+IOFFSET);
-                 else
-                     error("%s[%d] is NA", sVecName, i+IOFFSET);
-             }
-#endif
              if(ISNAN(x[i + iCol * nCases])) {
                  if(nCols > 1)
                      error("%s[%d,%d] is NaN",
@@ -2802,9 +2687,6 @@ static void ForwardPass(
     if(nMaxTerms >= 3) while(1) { // start after intercept, add terms in pairs
         int iBestPred = -1, iBestParent = -1;
         bool IsNewForm, LinPredIsBest;
-#if USING_R
-        ServiceR();
-#endif
         if(Rss <= 0)
             error("assertion failed: Rss <= 0 (y is all const?)");
         ASSERT(RssDelta > 0);
@@ -2893,118 +2775,6 @@ static void ForwardPass(
     free1(xOrder);
 }
 
-//-----------------------------------------------------------------------------
-// This is an interface from R to the C routine ForwardPass
-
-#if USING_R
-void ForwardPassR(              // for use by R
-    int    FullSet[],           // out: nMaxTerms x 1, bool vec of lin indep cols of bx
-    double bx[],                // out: MARS basis matrix, nCases x nMaxTerms
-    double Dirs[],              // out: nMaxTerms x nPreds, elements are -1,0,1,2
-    double Cuts[],              // out: nMaxTerms x nPreds, cut for iTerm,iPred
-    int*   piTermCond,          // out: reason we terminated the forward pass
-    const double x[],           // in: nCases x nPreds, unweighted x
-    const double y[],           // in: nCases x nResp, unweighted but scaled y
-    const double yw[],          // in: nCases x nResp, weighted and scaled y
-    const double WeightsArg[],  // in: nCases x 1, never MyNull
-    const int* pnCases,         // in: number of rows in x and elements in y
-    const int* pnResp,          // in: number of cols in y
-    const int* pnPreds,         // in: number of cols in x
-    const int* pnMaxDegree,     // in:
-    const double* pPenalty,     // in:
-    const int* pnMaxTerms,      // in:
-    const double* pThresh,      // in: forward step threshold
-    const int* pnMinSpan,       // in:
-    const int* pnEndSpan,       // in:
-    const int* pnFastK,         // in: Fast MARS K
-    const double* pFastBeta,    // in: Fast MARS ageing coef
-    const double* pNewVarPenalty,  // in: penalty for adding a new variable (default is 0)
-    const int  LinPreds[],         // in: nPreds x 1, 1 if predictor must enter linearly
-    const SEXP Allowed,            // in: constraints function, can be MyNull
-    const int* pnAllowedFuncArgs,  // in: number of arguments to Allowed function, 3 or 4
-    const SEXP Env,                // in: environment for Allowed function
-    const double* pAdjustEndSpan, // in:
-    const int* pnUseBetaCache,     // in: 1 to use the beta cache, for speed
-    const double* pTrace,          // in: 0 none 1 overview 2 forward 3 pruning 4 more pruning
-    const char* sPredNames[],      // in: predictor names in trace printfs, can be MyNull
-    const SEXP MyNull)             // in: trick to avoid R check warnings on passing R_NilValue
-{
-    TraceGlobal = *pTrace;
-    nMinSpanGlobal = *pnMinSpan;
-    nEndSpanGlobal = *pnEndSpan;
-    AdjustEndSpanGlobal = *pAdjustEndSpan;
-
-    size_t nCases = *pnCases; // type convert
-
-    const int nResp = *pnResp;
-    const int nPreds = *pnPreds;
-    const int nMaxTerms = *pnMaxTerms;
-
-    // nUses is the number of time each predictor is used in the model
-    nUses = (int*)malloc1(*pnPreds * sizeof(int),
-                    "nUses\t\t\t*pnPreds %d sizeof(int)",
-                    *pnPreds, sizeof(int));
-
-    //  nDegree is degree of each term, degree of intercept is considered to be 0
-    nDegree = (int*)malloc1(nMaxTerms * sizeof(int),
-                        "nDegree\t\tnMaxTerms %d sizeof(int) %d",
-                        nMaxTerms, sizeof(int));
-
-    iDirs = (int*)calloc1(nMaxTerms * nPreds, sizeof(int),
-                        "iDirs\t\t\tnMaxTerms %d nPreds %d sizeof(int) %d",
-                        nMaxTerms, nPreds, sizeof(int));
-
-    // convert int to bool (may be redundant, depending on compiler)
-    BoolFullSet = (int*)malloc1(nMaxTerms * sizeof(bool),
-                        "BoolFullSet\t\tnMaxTerms %d sizeof(bool) %d",
-                        nMaxTerms, sizeof(bool));
-
-    int iTerm;
-    for(iTerm = 0; iTerm < nMaxTerms; iTerm++)
-        BoolFullSet[iTerm] = FullSet[iTerm];
-
-    // convert R my.null to C NULL
-
-#if !WEIGHTS
-    ASSERT(*(int*)yw == *(int*)MyNull);
-#endif
-    if(*(int*)yw == *(int*)MyNull)
-        yw = NULL;
-    if(*(int*)sPredNames == *(int*)MyNull)
-        sPredNames = NULL;
-    ASSERT(*(int*)WeightsArg != *(int*)MyNull);
-
-    InitAllowedFunc(*(int*)Allowed == *(int*)MyNull? NULL: Allowed,
-                    *pnAllowedFuncArgs, Env, sPredNames, nPreds);
-
-    int nTerms;
-    ForwardPass(&nTerms, piTermCond,
-            BoolFullSet, bx, iDirs, Cuts, nDegree, nUses,
-            x, y, yw, WeightsArg, nCases, nResp, nPreds, *pnMaxDegree, nMaxTerms,
-            *pPenalty, *pThresh, *pnFastK, *pFastBeta, *pNewVarPenalty,
-            LinPreds, *pAdjustEndSpan, (bool)(*pnUseBetaCache), sPredNames);
-
-    FreeAllowedFunc();
-
-    // remove linearly independent columns if necessary -- this updates BoolFullSet
-
-    RegressAndFix(NULL, NULL, NULL, BoolFullSet,
-        bx, yw? yw: y, nCases, nResp, nMaxTerms);
-
-    for(iTerm = 0; iTerm < nMaxTerms; iTerm++)      // convert int to double
-        for(int iPred = 0; iPred < nPreds; iPred++)
-            Dirs[iTerm + iPred * nMaxTerms] =
-                iDirs[iTerm + iPred * nMaxTerms];
-
-    for(iTerm = 0; iTerm < nMaxTerms; iTerm++)      // convert bool to int
-        FullSet[iTerm] = BoolFullSet[iTerm];
-
-    free1(BoolFullSet);
-    free1(iDirs);
-    free1(nDegree);
-    free1(nUses);
-}
-#endif // USING_R
 
 //-----------------------------------------------------------------------------
 // Step backwards through the terms, at each step deleting the term that
@@ -3101,47 +2871,7 @@ static void EvalSubsetsUsingXtx(
 }
 
 //-----------------------------------------------------------------------------
-// This is invoked from R if y has multiple columns i.e. a multiple response model.
-// It is needed because the alternative (Alan Miller's Fortran code) supports
-// only one response.
-
-#if USING_R
-void EvalSubsetsUsingXtxR(      // for use by R
-    double       PruneTerms[],  // out: specifies which cols in bx are in best set
-    double       RssVec[],      // out: nTerms x 1
-    const int*   pnCases,       // in
-    const int*   pnResp,        // in: number of cols in y
-    const int*   pnMaxTerms,    // in
-    const double bx[],          // in: MARS basis matrix, all cols must be indep
-    const double y[],           // in: nCases * nResp (possibly weighted)
-    const double* pTrace)       // in
-{
-    TraceGlobal = *pTrace;
-
-    const int nMaxTerms = *pnMaxTerms;
-    bool* BoolPruneTerms = (int*)malloc1(nMaxTerms * nMaxTerms * sizeof(bool),
-                                "BoolPruneTerms\tMaxTerms %d nMaxTerms %d sizeof(bool) %d",
-                                nMaxTerms, nMaxTerms, sizeof(bool));
-
-    size_t nCases = *pnCases; // type convert
-
-    EvalSubsetsUsingXtx(BoolPruneTerms, RssVec, nCases, *pnResp,
-                        nMaxTerms, bx, y);
-
-    // convert BoolPruneTerms to upper triangular matrix PruneTerms
-
-    for(int iModel = 0; iModel < nMaxTerms; iModel++) {
-        int iPrune = 0;
-        for(int iTerm = 0; iTerm < nMaxTerms; iTerm++)
-            if(BoolPruneTerms[iTerm + iModel * nMaxTerms])
-                PruneTerms[iModel + iPrune++ * nMaxTerms] = iTerm + 1;
-    }
-    free1(BoolPruneTerms);
-}
-#endif // USING_R
-
-//-----------------------------------------------------------------------------
-#if STANDALONE && WEIGHTS
+#if WEIGHTS
 static void UnweightBx(
     double bx[],               // in: nCases x nMaxTerms
     const double WeightsArg[], // in
@@ -3154,10 +2884,9 @@ static void UnweightBx(
                 bx_(i, iTerm) /= sqrt(WeightsArg[i]);
     }
 }
-#endif // STANDALONE
+#endif // WEIGHTS
 
 //-----------------------------------------------------------------------------
-#if STANDALONE
 static void BackwardPass(
     double* pBestGcv,          // out: GCV of the best model i.e. BestSet columns of bx
     bool   BestSet[],          // out: nMaxTerms x 1, indices of best set of cols of bx
@@ -3226,10 +2955,9 @@ static void BackwardPass(
     RegressAndFix(Betas, Residuals, NULL, BestSet,
         bx, y, nCases, nResp, nMaxTerms);
 }
-#endif // STANDALONE
+
 
 //-----------------------------------------------------------------------------
-#if STANDALONE
 static int DiscardUnusedTerms(
     double bx[],             // io: nCases x nMaxTerms
     int    Dirs[],           // io: nMaxTerms x nPreds
@@ -3256,10 +2984,9 @@ static int DiscardUnusedTerms(
         WhichSet[iTerm] = true;
     return nUsed;
 }
-#endif // STANDALONE
 
 //-----------------------------------------------------------------------------
-#if STANDALONE
+
 ECOEARTH_API void Earth(
     double* pBestGcv,            // out: GCV of the best model i.e. BestSet columns of bx
     int*    pnTerms,             // out: max term nbr in final model, after removing lin dep terms
@@ -3429,13 +3156,11 @@ ECOEARTH_API void Earth(
 	//for (int i = 0; i < (nMaxTerms * nResp); i++) 
 	//	printf("Betas[%d] = %lf\n", i, Betas[i]);
 }
-#endif // STANDALONE
 
 //-----------------------------------------------------------------------------
 // Return the max number of knots in any term.
 // Lin dep factors are considered as having one knot (at the min value of the predictor)
 
-#if STANDALONE
 static int GetMaxKnotsPerTerm(
     const bool   UsedCols[],    // in
     const int    Dirs[],        // in
@@ -3455,13 +3180,13 @@ static int GetMaxKnotsPerTerm(
         }
     return nKnotsMax;
 }
-#endif // STANDALONE
+
 
 //-----------------------------------------------------------------------------
 // print a string representing the earth expression, one term per line
 // TODO spacing is not quite right and is overly complicated
 
-#if STANDALONE
+
 static void FormatOneResponse(
     const bool   UsedCols[],// in: nMaxTerms x 1, indices of best set of cols of bx
     const int    Dirs[],    // in: nMaxTerms x nPreds, -1,0,1,2 for iTerm, iPred
@@ -3555,12 +3280,11 @@ ECOEARTH_API void FormatEarth(
             nTerms, nMaxTerms, nDigits, MinBeta);
     }
 }
-#endif // STANDALONE
+
 
 //-----------------------------------------------------------------------------
 // return the value predicted by an earth model, given  a vector of inputs x
 
-#if STANDALONE
 static double PredictOneResponse(
     const double x[],        // in: vector nPreds x 1 of input values
     const bool   UsedCols[], // in: nMaxTerms x 1, indices of best set of cols of bx
@@ -3630,12 +3354,11 @@ ECOEARTH_API void Predict(
                        &G_Betas[iResp * G_pnTerms], nPreds, G_pnTerms, nMaxTerms);
 	}
 }
-#endif // STANDALONE
 
 //-----------------------------------------------------------------------------
 // return the value predicted by an earth model, given  a vector of inputs x
 
-#if STANDALONE
+
 
 ECOEARTH_API void FullPredictEarth(
     double       y_hat[],		// out: vector nResp x 1
@@ -3746,8 +3469,8 @@ ECOEARTH_API void FullPredictEarth(
 
 	free(LinPreds);
 }
-#endif // STANDALONE
-#if STANDALONE
+
+
 // Return the last RSquare calculated.
 ECOEARTH_API double GetRSquareTraining() {
 	return RSquare;
@@ -3763,12 +3486,12 @@ ECOEARTH_API double GetMAPETraining() {
 	return MAPETrainig;
 }
 
-#endif
+
 //-----------------------------------------------------------------------------
 // Example main routine
 // See earth/inst/slowtests/test.earthc.c for more complex examples
 
-#if STANDALONE
+
 void error(const char *args, ...)       // params like printf
 {
     char s[1000];
@@ -3792,7 +3515,7 @@ void xerbla_(char *srname, int* info)   // needed by BLAS and LAPACK routines
     buf[6] = 0;
     error("BLAS/LAPACK routine %6s gave error code %d", buf, -(*info));
 }
-#endif // STANDALONE
+
 
 #if MAIN
 int main(void)
@@ -3863,4 +3586,4 @@ int main(void)
 
     return 0;
 }
-#endif // STANDALONE && MAIN
+#endif // MAIN
