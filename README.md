@@ -9,3 +9,40 @@ The MARS model is designed to predict continuous numeric outcomes such as the av
 I have found two good implementations of MARS algorithm. The first implementation is produced by Salford Systems. The second implementation I have found is a library in R Statistics called Earth. Both programs produce similar results when they are tested with the same set of data.
 
 The problem is that I was needing a library to embed in a system that I was working to forecast prices. Salford System is a closed desktop application that does not allow to embedded into another system. R Statistics library can be embedded into another software through software connectors that are not reliable and difficult to integrate into the current software being implemented. The option I took was to get the source code in R of Earth implementation and update/rewrite it to be compatible with Microsoft .NET. The main part of the program was written in C/C++. I implemented a C# wrapper that calls exportable functions written in C/C++. This new C# implementation allows to train the model first and then use it as many times you want without the need of training the model again each time that the model needs to predict something.
+
+Here is an example how to use MARS in C#.
+
+// Create training set
+Double[][] xTraining = new Double[][] {
+   new Double[] {1.5, 3.0, 4.5},
+   new Double[] {0.5, 1.2, 2.3},
+   new Double[] {2.5, 1.0, 3.5},
+   new Double[] {4.3, 5.1, 6.3},
+   new Double[] {-0.8, 7.4, 1.2}
+};
+Double[] yTraining = new Double[] {
+   0.5, 1.2, 2.3, 3.5, -0.3
+};
+
+// Instantiate MARS and Learn the model
+MARS mars = new MARS();
+mars.Learn(xTraining , yTraining );
+
+// Show how good was the training fitting
+System.Console.WriteLine("RSquare Training = {0}", mars.RSquareTraining);
+System.Console.WriteLine("MAPE Training = {0}", mars.MAPETraining);
+
+// Create testing set
+Double[] xTesting = new Double[] {
+   3.2, 4.3, 5.1
+};
+// Predict new Y value using xTesting
+Double yHat = mars.Predict(xTesting);
+
+// Show how good was the testing fitting
+System.Console.WriteLine("Predicted value = {0}", yHat);
+System.Console.WriteLine("RSquare Testing = {0}", mars.RSquareTesting);
+System.Console.WriteLine("MAPE Testing    = {0}", mars.MAPETesting);
+
+
+
