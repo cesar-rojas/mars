@@ -12,18 +12,18 @@ The problem is that I was needing a library to embed in a system that I was work
 
 Here is an example how to use MARS in C#.
 
-// Create training set
-Double[][] xTraining = new Double[][] {
-   new Double[] {1.5, 3.0, 4.5},
-   new Double[] {0.5, 1.2, 2.3},
-   new Double[] {2.5, 1.0, 3.5},
-   new Double[] {4.3, 5.1, 6.3},
-   new Double[] {-0.8, 7.4, 1.2}
-};
-Double[] yTraining = new Double[] {
-   0.5, 1.2, 2.3, 3.5, -0.3
-};
-
+// Create training set</br>
+Double[][] xTraining = new Double[][] {</br>
+   new Double[] {1.5, 3.0, 4.5},</br>
+   new Double[] {0.5, 1.2, 2.3},</br>
+   new Double[] {2.5, 1.0, 3.5},</br>
+   new Double[] {4.3, 5.1, 6.3},</br>
+   new Double[] {-0.8, 7.4, 1.2}</br>
+};</br>
+Double[] yTraining = new Double[] {</br>
+   0.5, 1.2, 2.3, 3.5, -0.3</br>
+};</br>
+</br>
 // Instantiate MARS and Learn the model
 MARS mars = new MARS();
 mars.Learn(xTraining , yTraining );
