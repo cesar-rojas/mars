@@ -9,10 +9,10 @@
 //
 // Stephen Milborrow Feb 2007 - Petaluma
 // Cesar A. Rojas    Jan 2016 - Rewritten in Visual Studio C++. 
-//								Updated to allow training and prediction separately.
-//								Add RSquare, Generalized RSquare and MAPE calculation for training and testing separately.
-//								Creation of function to be exported to C#.
-//								Added additional MARS functionality missing from Friedman's paper.
+//                              Updated to allow training and prediction independently.
+//                              Add R Squared, Generalized R Square and MAPE calculation for training and testing separately.
+//                              Creation of function to be exported to C#.
+//                              Added MARS functionality missing from Friedman's paper.
 //
 // References:
 //
