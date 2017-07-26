@@ -8,7 +8,7 @@
 // See also www.milbo.users.sonic.net.  This code uses a subset of C99.
 //
 // Stephen Milborrow Feb 2007 - Petaluma
-// Cesar A. Rojas    Jan 2016 - Rewritten in Visual Studio C++. 
+// Cesar A. Rojas    Jan 2016 - Rewritten to support Visual Studio C++. 
 //                              Updated to allow training and prediction independently.
 //                              Add R Squared, Generalized R Square and MAPE calculation for training and testing separately.
 //                              Creation of function to be exported to C#.
